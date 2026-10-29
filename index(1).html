@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Charge Prices">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<title>Charge Prices</title>
+<style>
+:root{--bg:#f2f2f7;--card:#fff;--text:#000;--sub:#8a8a8e;--sep:rgba(60,60,67,.14);--seg:rgba(118,118,128,.12);--segsel:#fff;--accent:#007aff;--ok:#34c759;--warn:#ff9500}
+@media(prefers-color-scheme:dark){:root{--bg:#000;--card:#1c1c1e;--text:#fff;--sub:#8e8e93;--sep:rgba(84,84,88,.5);--seg:rgba(118,118,128,.24);--segsel:#636366;--accent:#0a84ff}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{max-width:560px;margin:0 auto;padding:calc(env(safe-area-inset-top,0px) + 14px) 16px calc(env(safe-area-inset-bottom,0px) + 28px)}
+header{display:flex;align-items:flex-start;justify-content:space-between;margin:6px 4px 14px}
+h1{font-size:34px;line-height:1.1;font-weight:700;letter-spacing:-.6px;margin:0}
+#updated{font-size:13px;color:var(--sub);margin-top:4px}
+#refresh{border:0;background:var(--seg);color:var(--accent);width:36px;height:36px;border-radius:50%;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;margin-top:4px}
+#refresh.spin svg{animation:r 1s linear infinite}
+@keyframes r{to{transform:rotate(360deg)}}
+.seg{display:flex;background:var(--seg);border-radius:9px;padding:2px;position:relative}
+.seg button{flex:1;border:0;background:transparent;color:var(--text);font:inherit;font-size:13px;font-weight:500;padding:7px 4px;border-radius:7px;cursor:pointer;transition:background .2s,box-shadow .2s}
+.seg button.on{background:var(--segsel);box-shadow:0 2px 6px rgba(0,0,0,.12);font-weight:600}
+.seg.big button{font-size:15px;padding:8px 4px}
+.sortrow{margin:12px 0 16px}
+.label{font-size:12px;color:var(--sub);margin:0 4px 6px;text-transform:uppercase;letter-spacing:.4px}
+.list{background:var(--card);border-radius:14px;overflow:hidden}
+.row{display:flex;align-items:center;gap:12px;padding:12px 14px;position:relative;text-decoration:none;color:inherit}
+.row+.row::before{content:"";position:absolute;top:0;left:68px;right:0;height:.5px;background:var(--sep)}
+.ico{width:44px;height:44px;border-radius:10px;flex:none;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:18px;overflow:hidden;background:#fff;box-shadow:inset 0 0 0 .5px var(--sep)}
+.ico img{width:30px;height:30px;object-fit:contain}
+.ico.l{box-shadow:none}
+.mid{flex:1;min-width:0}
+.name{font-size:17px;font-weight:600;letter-spacing:-.2px}
+.meta{font-size:12px;color:var(--sub);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.meta.bad{color:var(--warn)}
+.dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--ok);margin-right:5px;vertical-align:1px}
+.price{text-align:right;flex:none}
+.price b{font-size:19px;font-weight:700;letter-spacing:-.3px;font-variant-numeric:tabular-nums}
+.price small{display:block;font-size:11px;color:var(--sub);margin-top:1px}
+.price.none b{color:var(--sub);font-weight:500}
+.foot{font-size:12px;color:var(--sub);text-align:center;margin:18px 8px 0;line-height:1.5}
+#ptr{height:0;overflow:hidden;text-align:center;color:var(--sub);font-size:13px;transition:height .2s}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="ptr">Yenilemek için bırak</div>
+  <header>
+    <div><h1>Charge Prices</h1><div id="updated">Yükleniyor…</div></div>
+    <button id="refresh" aria-label="Yenile"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg></button>
+  </header>
+  <div class="seg big" id="tabs"><button data-v="dc" class="on">DC</button><button data-v="ac">AC</button></div>
+  <div class="sortrow">
+    <div class="label">Sıralama</div>
+    <div class="seg" id="sorts"><button data-v="def" class="on">Varsayılan</button><button data-v="asc">Fiyat ↑</button><button data-v="desc">Fiyat ↓</button></div>
+  </div>
+  <div class="list" id="list"></div>
+  <div class="foot">Fiyatlar ₺/kWh, KDV dahildir. Lokasyona göre değişebilir.<br>Veriler operatör sitelerinden çekilir.</div>
+</div>
+<script>
+const OPS=[
+{id:'zes',n:'ZES',u:'https://zes.net/tr/fiyatlandirma',ac:/\bAC\s+(?=\d)/,dc:/DC-1 DC-2\s*/,s:{ac:[10.99],dc:[12.99,16.49]}},
+{id:'trugo',n:'Trugo',u:'https://trugo.com.tr/price',ac:/AC cihazlar için\s*1 kWh ücreti\s*/,dc:/DC cihazlar için\s*1 kWh ücreti\s*/,s:{ac:[9.95],dc:[12,14.98]}},
+{id:'astor',n:'Astor Şarj',u:'https://www.astorsarj.com.tr/',ac:/AC FİYATLANDIRMA\s*/,dc:/DC FİYATLANDIRMA\s*/,s:{ac:[9.89],dc:[13.99]}},
+{id:'wat',n:'WAT Mobilite',u:'https://www.watmobilite.com/cozumler/kamusal-alanlar',ac:/AC:\s*(?=\d)/,dc:/DC:\s*(?=\d)/,s:{ac:[9.99,10.99],dc:[11.99,14.49]}},
+{id:'neva',n:'Neva Şarj',u:'https://www.nevasarj.com/sayfalar/istasyonlarimiz/arac-sarj-ac-dc-kwh-fiyat-tarifeleri.html',ac:/AC Soketler\s*/,dc:/DC Soketler\s*/,s:{ac:[9.9],dc:[13.9]}},
+{id:'esarj',n:'Eşarj',u:'https://esarj.com/fiyatlandirma',ac:/\bAC\b\D{0,60}?(?=\d{1,2}[.,]\d{2})/,dc:/\bDC\b\D{0,60}?(?=\d{1,2}[.,]\d{2})/,s:{}},
+{id:'enyakit',n:'En Yakıt',u:'https://www.enyakit.com.tr/ucretlendirme',ac:null,dc:/ağımızda,?\s*/,s:{dc:[14.9]}},
+{id:'zeplin',n:'Zeplin Enerji',u:'https://www.zeplinenerji.com/',ac:/AC Soketler\s*=\s*/,dc:/DC Soketler\s*=\s*/,s:{ac:[9.5],dc:[12]}},
+{id:'voltrun',n:'Voltrun',u:'https://www.voltrun.com/tr/tarifeler',ac:/\bAC\s*(?=\d)/,dc:/\bDC\s*(?=\d)/,s:{ac:[9.9],dc:[12.9]}},
+{id:'5sarj',n:'5Şarj',u:'https://5sarj.com/tr/fiyatlandirma',ac:/\bAC\b\D{0,60}?(?=\d{1,2}[.,]\d{2})/,dc:/\bDC\b\D{0,60}?(?=\d{1,2}[.,]\d{2})/,s:{}},
+{id:'shell',n:'Shell Recharge',u:'https://www.shell.com.tr/suruculer/shell-recharge-turkiye/fiyat-tarifesi.html',ac:/\bAC\b\D{0,60}?(?=\d{1,2}[.,]\d{2})/,dc:/\bDC\b\D{0,60}?(?=\d{1,2}[.,]\d{2})/,s:{}},
+{id:'ovolt',n:'Ovolt',u:'https://ovolt.com.tr/tarifeler',ac:/AC Tarife\s*/,dc:/DC Tarife\s*/,s:{ac:[9.99],dc:[10.49,14.49]}},
+{id:'oncharge',n:'Oncharge',u:'https://oncharge.com.tr/fiyatlar',ac:/AC Soket Tarifesi\s*/,dc:/DC Soket Tarifesi\s*/,s:{ac:[9.99],dc:[13.5]}},
+{id:'otopriz',n:'Otopriz',u:'https://otopriz.com.tr/uyelik-ve-tarifeler',ac:/AC Type 2 Soketler\s*FİYAT\/BİRİM\s*/,dc:/DC CCS Soketler\s*FİYAT\/BİRİM\s*/,s:{ac:[7.92,9.9],dc:[9.73,13.9]}},
+{id:'otojet',n:'Otojet',u:'https://www.oto-jet.com.tr/fiyatlarimiz',ac:/\bAC\b\D{0,60}?(?=\d{1,2}[.,]\d{2})/,dc:/\bDC\b\D{0,60}?(?=\d{1,2}[.,]\d{2})/,s:{}}
+];
+const PROXIES=[u=>'https://api.allorigins.win/raw?url='+encodeURIComponent(u),u=>'https://corsproxy.io/?url='+encodeURIComponent(u),u=>'https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(u)];
+const SEED_TS=new Date('2026-10-29T12:00:00').getTime();
+const KEY='chargeprices_v1';
+let tab='dc',sort='def',loading=false;
+let store={};try{store=JSON.parse(localStorage.getItem(KEY)||'{}')}catch(e){}
+const st={};
+OPS.forEach(o=>{const c=store[o.id];st[o.id]=c?{ac:c.ac,dc:c.dc,ts:c.ts,seed:false,status:'idle'}:{ac:o.s.ac||null,dc:o.s.dc||null,ts:(o.s.ac||o.s.dc)?SEED_TS:null,seed:true,status:'idle'}});
+
+const $=s=>document.querySelector(s);
+const f2=n=>n.toLocaleString('tr-TR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const dt=ts=>{const d=new Date(ts);return d.toLocaleDateString('tr-TR',{day:'numeric',month:'short'})+' '+d.toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})};
+const hue=s=>{let h=0;for(const c of s)h=(h*31+c.charCodeAt(0))%360;return h};
+
+function toText(h){return h.replace(/<script[\s\S]*?<\/script>/gi,' ').replace(/<style[\s\S]*?<\/style>/gi,' ').replace(/<[^>]+>/g,' ').replace(/&nbsp;|&#160;/g,' ').replace(/&amp;/g,'&').replace(/&#8378;|&TRY;/g,'₺').replace(/[\u200b-\u200d\u00a0]/g,' ').replace(/\s+/g,' ')}
+function extract(t,re){
+  if(!re)return null;const m=re.exec(t);if(!m)return null;
+  let s=t.slice(m.index+m[0].length,m.index+m[0].length+60).replace(/kW\/?h|TL|₺|KDV/gi,' ');
+  const c=s.search(/[A-Za-zÇĞİÖŞÜçğıöşü]{2,}/);if(c>=0)s=s.slice(0,c);
+  const nums=(s.match(/\d{1,2}[.,]\d{1,2}/g)||[]).slice(0,2).map(x=>parseFloat(x.replace(',','.'))).filter(x=>x>1&&x<60);
+  return nums.length?nums.sort((a,b)=>a-b):null;
+}
+async function viaProxy(url){
+  for(const p of PROXIES){
+    try{const c=new AbortController(),t=setTimeout(()=>c.abort(),12000);
+      const r=await fetch(p(url),{signal:c.signal});clearTimeout(t);
+      if(!r.ok)continue;const h=await r.text();if(h.length>400)return h;}catch(e){}
+  }
+  throw new Error('fetch');
+}
+async function updateOp(o){
+  const s=st[o.id];s.status='loading';render();
+  try{
+    const t=toText(await viaProxy(o.u));
+    const ac=extract(t,o.ac),dc=extract(t,o.dc);
+    if(!ac&&!dc)throw new Error('parse');
+    s.ac=ac;s.dc=dc;s.ts=Date.now();s.seed=false;s.status='ok';
+    store[o.id]={ac,dc,ts:s.ts};
+    try{localStorage.setItem(KEY,JSON.stringify(store))}catch(e){}
+  }catch(e){s.status='fail'}
+  render();
+}
+async function refreshAll(){
+  if(loading)return;loading=true;$('#refresh').classList.add('spin');
+  await Promise.all(OPS.map(updateOp));
+  loading=false;$('#refresh').classList.remove('spin');render();
+}
+function header(){
+  const tss=OPS.map(o=>st[o.id]).filter(s=>s.ts&&!s.seed).map(s=>s.ts);
+  $('#updated').textContent=loading?'Güncelleniyor…':(tss.length?'Güncellenme: '+dt(Math.max(...tss)):'Henüz güncellenmedi');
+}
+function icon(o){
+  const d=document.createElement('div');d.className='ico';
+  const dom=new URL(o.u).hostname;
+  const img=new Image();img.alt='';img.src='https://www.google.com/s2/favicons?domain='+dom+'&sz=128';
+  img.onload=()=>{if(img.naturalWidth<24){fb()}};img.onerror=fb;
+  function fb(){d.classList.add('l');d.style.background='hsl('+hue(o.id)+',55%,50%)';d.textContent=o.n[0];}
+  d.appendChild(img);return d;
+}
+function render(){
+  header();
+  let ops=OPS.map((o,i)=>({o,i,v:st[o.id][tab]}));
+  if(sort!=='def'){
+    ops.sort((a,b)=>{const x=a.v?a.v[0]:null,y=b.v?b.v[0]:null;
+      if(x==null&&y==null)return a.i-b.i;if(x==null)return 1;if(y==null)return -1;
+      return sort==='asc'?x-y:y-x;});
+  }
+  const list=$('#list');list.innerHTML='';
+  ops.forEach(({o,v})=>{
+    const s=st[o.id];
+    const a=document.createElement('a');a.className='row';a.href=o.u;a.target='_blank';a.rel='noopener';
+    a.appendChild(icon(o));
+    const mid=document.createElement('div');mid.className='mid';
+    let meta='',bad='';
+    if(s.status==='loading')meta='Güncelleniyor…';
+    else if(s.status==='ok')meta='<span class="dot"></span>Güncellendi · '+dt(s.ts);
+    else if(s.status==='fail'){bad='bad';meta=s.ts?'Çekilemedi · son veri: '+dt(s.ts)+(s.seed?' (kayıtlı)':''):'Çekilemedi · veri yok';}
+    else meta=s.ts?'Son veri: '+dt(s.ts)+(s.seed?' (kayıtlı)':''):'Veri yok';
+    mid.innerHTML='<div class="name">'+o.n+'</div><div class="meta '+bad+'">'+meta+'</div>';
+    a.appendChild(mid);
+    const p=document.createElement('div');p.className='price'+(v?'':' none');
+    p.innerHTML=v?'<b>₺'+(v.length>1&&v[0]!==v[1]?f2(v[0])+'–'+f2(v[1]):f2(v[0]))+'</b><small>kWh</small>':'<b>—</b>';
+    a.appendChild(p);list.appendChild(a);
+  });
+}
+function seg(id,cb){$(id).addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+  $(id).querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));cb(b.dataset.v);render();});}
+seg('#tabs',v=>tab=v);seg('#sorts',v=>sort=v);
+$('#refresh').onclick=refreshAll;
+// aşağı çekerek yenile
+let y0=null;const ptr=$('#ptr');
+addEventListener('touchstart',e=>{y0=scrollY<=0?e.touches[0].clientY:null},{passive:true});
+addEventListener('touchmove',e=>{if(y0==null)return;const d=e.touches[0].clientY-y0;if(d>0)ptr.style.height=Math.min(d/2,40)+'px';},{passive:true});
+addEventListener('touchend',()=>{if(y0==null)return;const big=parseInt(ptr.style.height)>=36;ptr.style.height=0;y0=null;if(big)refreshAll();});
+render();refreshAll();
+</script>
+</body>
+</html>
